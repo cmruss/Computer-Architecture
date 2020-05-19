@@ -166,6 +166,114 @@ while not halted:
         print(f"unknown instruction {instruction} at address {pc}")
         exit(1)
 
+"""
+Bitwise Operations
+------------------
+
+12 = 0b1100
+
+1100
+1000
+1011
+
+1100
+0110
+0011
+
+Similiar to Boolean operations: and, or, not
+
+A  B        A & B  AND
+-------------------
+0  0          0
+1  0          0
+0  1          0
+1  1          1
+
+A  B        A | B  OR
+-------------------
+0  0          0
+1  0          1
+0  1          1
+1  1          1
+
+A  B        A ^ B  XOR
+-------------------
+0  0          0
+1  0          1
+0  1          1
+1  1          0
+
+    11101001  255.255.255.0 subnet mask
+&   00001111  AND-mask
+------------
+    00001001
+
+    11101001
+|   00001111
+------------
+    11101111
+
+~   1100 NOT
+-------- Two's principle
+    0011 Swaps 
+
+Shifting
+--------
+   vv
+11001010
+   ^^
+    11001010
+&   00011000 Mask the bits you want
+------------
+    00001000 
+       ^^
+    00001000 Shift right by 3
+    00000100 x = x >> 3
+    00000010
+    00000001
+          ^^
+
+BASE 10 Analogy
+---------------
+  vv
+123456
+009900 Mask
+------
+003400
+
+003400 Shift
+000340
+000034
+
+Hex and-mask, shift
+------------
+  RRGGBB
+0xff7fff
+0x00ff00 
+--------
+0x007f00 >> 8
+0x00007f
+
+Left shift mulitplies by base
+Right shift divides by base
+
+Binary is base 2
+
+0b11000 = 24
+0b01100 = 12
+0b00110 = 6
+0b00011 = 3
+0b00001 = 1
+
+BASE 10 Analogy
+
+  12
+ 120
+1200
+ 120
+  12
+   1
+"""
 
 # Given an object/dictionary with keys and values that consist of both strings and integers, design an algorithm to calculate and return the sum of all of the numeric values. 
 # For example, given the following object/dictionary as input:

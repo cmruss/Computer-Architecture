@@ -2,6 +2,16 @@
 
 import sys
 
+ADD = 0b10100000
+CALL = 0b01010000
+HLT = 0b00000001
+LDI = 0b10000010
+MUL = 0b10100010
+POP = 0b01000110
+PRN = 0b01000111
+PUSH = 0b01000101
+RET = 0b00010001
+
 class CPU:
     """Main CPU class."""
 
@@ -9,8 +19,20 @@ class CPU:
         """Construct a new CPU."""
         self.ram = [0] * 256
         self.pc = 0
+        self.sp = 0xF4
         self.reg = [0] * 8
-        self.halted = False 
+        self.IR = None
+        self.halted = False
+        self.branch_table = {}
+        self.branch_table[ADD] = self.alu
+        self.branch_table[MUL] = self.alu
+        self.branch_table[CALL] = self.call
+        self.branch_table[HLT] = self.hlt
+        self.branch_table[LDI] = self.ldi
+        self.branch_table[POP] = self.pop
+        self.branch_table[PRN] = self.prn
+        self.branch_table[PUSH] = self.push
+        self.branch_table[RET] = self.ret
 
     def load(self):
         """Load a program into memory."""
@@ -33,28 +55,60 @@ class CPU:
                     address += 1 # increment address
 
 
-    def alu(self, op, reg_a, reg_b):
+    def alu(self, reg_a, reg_b):
         """ALU operations."""
+        op = self.IR
 
-        if op == "ADD":
+        if op == ADD:
             self.reg[reg_a] += self.reg[reg_b]
-        elif op == "SUB":
+
+        elif op == 'SUB':
             self.reg[reg_a] -= self.reg[reg_b]
-        elif op == "MUL":
+
+        elif op == MUL:
             self.reg[reg_a] *= self.reg[reg_b]
-        elif op == "DIV":
+
+        elif op == 'DIV':
             self.reg[reg_a] /= self.reg[reg_b]
+
         else:
             raise Exception("Unsupported ALU operation")
-        self.pc += 3
+
+    def call(self, reg_a):
+        """
+        Calls a subroutine (function) at the address stored in the register.
+        The address of the instruction following `CALL` is
+        pushed onto the stack.
+        The PC is set to the address stored in the given register.
+        We jump to that location in RAM and execute the first instruction in the subroutine. 
+        The PC can move forward or backwards from its current location.
+        """
+        self.push(reg_a)
+
+
+    def hlt(self):
+        """
+        Halt the CPU (and exit the emulator).
+        """
+        self.halted = True
+        print(f"exiting")
+        exit()
+
 
     def ldi(self, mar, value):
         """
         Set the value of a register to an integer.
         """
-        print(f"ldi called on {self.reg[mar]}")
         self.reg[mar] = value
-        self.pc += 3
+        # print(f"ldi called on register {mar}: {self.reg[mar]}")
+
+    def pop(self, mdr):
+        """
+        Pop the value at the top of the stack into the given register.
+        Memory Data Register (MDR) contains the read data
+        """
+        self.reg[mdr] = self.ram[self.sp]
+        self.sp += 1
 
     def prn(self, mar):
         """
@@ -62,7 +116,15 @@ class CPU:
         register.
         """
         print(self.reg[mar])
-        self.pc += 2
+
+    def push(self, mar):
+        """
+        Push the value in the given register on the stack.
+        Memory Address Register (MAR) contains the address being read to
+        """
+        self.sp -= 1
+        self.ram[self.sp] = self.reg[mar]
+
 
     def ram_read(self, mar):
         """
@@ -80,6 +142,40 @@ class CPU:
         Memory Address Register (MAR) contains the address being written to
         """
         self.ram[mar] = mdr
+
+    def ret(self):
+        """
+        Pop the value from the top of the stack and store it in the `PC`
+        """
+        self.pop(self.sp)
+
+    def run(self):
+        """
+        Run the CPU. It needs to read the memory address that's stored in register 
+        Program Counter (PC), and store that result in the Instruction Register (IR). 
+        This can just be a local variable
+        """
+    
+        while not self.halted:
+            self.IR = self.ram_read(self.pc)
+            operand_qty = self.IR >> 6 # right shift to get the the arg value
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+
+            if operand_qty == 0:
+                self.branch_table[self.IR]()
+
+            elif operand_qty == 1:
+                self.branch_table[self.IR](operand_a)
+
+            elif operand_qty == 2:
+                self.branch_table[self.IR](operand_a, operand_b)
+
+            else:
+                print(f"unknown instruction {self.IR} at address {self.pc}")
+                exit(1)
+
+            self.pc += operand_qty + 1 # increment by number of args add 1 for self
 
     def trace(self):
         """
@@ -101,54 +197,3 @@ class CPU:
 
         print()
 
-    def run(self):
-        """
-        Run the CPU. It needs to read the memory address that's stored in register 
-        Program Counter (PC), and store that result in the Instruction Register (IR). 
-        This can just be a local variable
-        """
-        
-        LDI = 0b10000010
-        PRN = 0b01000111
-        MUL = 0b10100010
-        HLT = 0b00000001
-
-
-        while not self.halted:
-            IR = self.ram_read(self.pc)
-            operand_a = self.ram_read(self.pc + 1)
-            operand_b = self.ram_read(self.pc + 2)
-                
-            # branch_table = { 
-            #     "LDI": self.ldi(operand_a, operand_b),
-            #     "PRN": self.prn(operand_a),
-            #     "MUL": self.alu("MUL", operand_a, operand_b),
-            #     "HLT": self.hlt()
-            #      }
-
-            # branch_table["IR"]()
-
-            if IR == PRN:
-                self.prn(operand_a)
-
-            elif IR == LDI:
-                self.ldi(operand_a, operand_b)
-
-            elif IR == MUL:
-                self.alu("MUL", operand_a, operand_b)
-            
-            elif IR == HLT:
-                self.hlt()
-
-            else:
-                print(f"unknown instruction {IR} at address {self.pc}")
-                exit(1)
-
-
-    def hlt(self):
-        """
-        Halt the CPU (and exit the emulator).
-        """
-        self.halted = True
-        print(f"exiting")
-        exit()
