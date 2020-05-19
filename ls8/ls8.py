@@ -5,6 +5,8 @@
 import sys
 from cpu import *
 
+print(sys.argv[0])
+
 cpu = CPU()
 
 cpu.load()
