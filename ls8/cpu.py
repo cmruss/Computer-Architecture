@@ -2,53 +2,66 @@
 
 import sys
 
+""" ALU ops """
 ADD = 0b10100000
+SUB = 0b10100001
+MUL = 0b10100010
+DIV = 0b10100011
+MOD = 0b10100100
+""" PC mutators """
 CALL = 0b01010000
+RET = 0b00010001
+""" Stack ops """
+PUSH = 0b01000101
+POP = 0b01000110
+""" Other """
+NOP = 0b00000000
 HLT = 0b00000001
 LDI = 0b10000010
-MUL = 0b10100010
-POP = 0b01000110
 PRN = 0b01000111
-PUSH = 0b01000101
-RET = 0b00010001
 
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-        self.ram = [0] * 256
-        self.pc = 0
-        self.sp = 0xF4
-        self.reg = [0] * 8
-        self.IR = None
-        self.halted = False
-        self.branch_table = {}
+        self.ram = [0] * 256 # memory
+        self.pc = 0 # program counter
+        self.sp = 0xF4 # stack pointer
+        self.reg = [0] * 8 # register
+        self.IR = None # instruction register
+        self.halted = False # run state
+
+        self.branch_table = {} # dict of methods
+        # mathematical methods
         self.branch_table[ADD] = self.alu
         self.branch_table[MUL] = self.alu
+        self.branch_table[DIV] = self.alu
+        self.branch_table[MOD] = self.alu
+        # pc mutator methods
         self.branch_table[CALL] = self.call
+        self.branch_table[RET] = self.ret
+        # stack methods
+        self.branch_table[PUSH] = self.push
+        self.branch_table[POP] = self.pop
+        # other
+        self.branch_table[NOP] = self.nop
         self.branch_table[HLT] = self.hlt
         self.branch_table[LDI] = self.ldi
-        self.branch_table[POP] = self.pop
         self.branch_table[PRN] = self.prn
-        self.branch_table[PUSH] = self.push
-        self.branch_table[RET] = self.ret
+        # print(self.branch_table)
 
     def load(self):
         """Load a program into memory."""
 
         address = 0
-
         program = sys.argv[1]
 
         with open(sys.argv[1]) as program: # grab the second sys argument as program
-
             for instruction in program: # iterate through the lines
-
                 i = instruction.find('#') # look for comments by searching the index
                 instruction = instruction[:i] # slice the comment off
                 instruction = instruction.rstrip() # remove whitespace
-
                 if len(instruction) > 0: # if the length of the line is greater than 0
                     # add it to the memory and convert to binary literal integer
                     self.ram[address] = int("0b"+instruction, 2) 
@@ -62,15 +75,17 @@ class CPU:
         if op == ADD:
             self.reg[reg_a] += self.reg[reg_b]
 
-        elif op == 'SUB':
+        elif op == SUB:
             self.reg[reg_a] -= self.reg[reg_b]
 
         elif op == MUL:
             self.reg[reg_a] *= self.reg[reg_b]
 
-        elif op == 'DIV':
+        elif op == DIV:
             self.reg[reg_a] /= self.reg[reg_b]
-
+        
+        elif op == MOD:
+            self.reg[reg_a] %= self.reg[reg_b] 
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -83,39 +98,19 @@ class CPU:
         We jump to that location in RAM and execute the first instruction in the subroutine. 
         The PC can move forward or backwards from its current location.
         """
-        self.push(reg_a)
+        ret_addr = self.pc + 1
+        self.sp -= 1
+        self.ram[self.sp] = ret_addr
+     
+        dest_addr = self.reg[reg_a]
+        self.pc = dest_addr
 
-
-    def hlt(self):
+    def ret(self):
         """
-        Halt the CPU (and exit the emulator).
+        Pop the value from the top of the stack and store it in the `PC`
         """
-        self.halted = True
-        print(f"exiting")
-        exit()
-
-
-    def ldi(self, mar, value):
-        """
-        Set the value of a register to an integer.
-        """
-        self.reg[mar] = value
-        # print(f"ldi called on register {mar}: {self.reg[mar]}")
-
-    def pop(self, mdr):
-        """
-        Pop the value at the top of the stack into the given register.
-        Memory Data Register (MDR) contains the read data
-        """
-        self.reg[mdr] = self.ram[self.sp]
-        self.sp += 1
-
-    def prn(self, mar):
-        """
-        Print to the console the decimal integer value that is stored in the given
-        register.
-        """
-        print(self.reg[mar])
+        ret_addr = self.ram[self.sp]
+        self.pc = ret_addr
 
     def push(self, mar):
         """
@@ -125,6 +120,39 @@ class CPU:
         self.sp -= 1
         self.ram[self.sp] = self.reg[mar]
 
+    def pop(self, mdr):
+        """
+        Pop the value at the top of the stack into the given register.
+        Memory Data Register (MDR) contains the read data
+        """
+        self.reg[mdr] = self.ram[self.sp]
+        self.sp += 1
+
+    def nop(self):
+        """ No operation. Do nothing for this instruction. """
+        pass
+
+    def hlt(self):
+        """
+        Halt the CPU (and exit the emulator).
+        """
+        self.halted = True
+        # print(f"exiting")
+        exit()
+
+    def ldi(self, mar, value):
+        """
+        Set the value of a register to an integer.
+        """
+        self.reg[mar] = value
+        # print(f"ldi called on register {mar}: {self.reg[mar]}")
+
+    def prn(self, mar):
+        """
+        Print to the console the decimal integer value that is stored in the given
+        register.
+        """
+        print(self.reg[mar])
 
     def ram_read(self, mar):
         """
@@ -142,12 +170,6 @@ class CPU:
         Memory Address Register (MAR) contains the address being written to
         """
         self.ram[mar] = mdr
-
-    def ret(self):
-        """
-        Pop the value from the top of the stack and store it in the `PC`
-        """
-        self.pop(self.sp)
 
     def run(self):
         """
@@ -175,7 +197,8 @@ class CPU:
                 print(f"unknown instruction {self.IR} at address {self.pc}")
                 exit(1)
 
-            self.pc += operand_qty + 1 # increment by number of args add 1 for self
+            if self.IR != CALL | self.IR != RET: # call and return mutate pc
+                self.pc += operand_qty + 1 # increment by number of args add 1 for self
 
     def trace(self):
         """
